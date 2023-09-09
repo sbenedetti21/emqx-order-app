@@ -1,0 +1,63 @@
+version: '3.9'
+services:
+  roach_test:
+    container_name: roach_test
+    restart: unless-stopped
+    image: cockroachdb/cockroach:v22.1.15
+    volumes:
+      - cockroach-data:/cockroach/cockroach-data
+    command: start-single-node --insecure --store=path=/cockroach/cockroach-data,size=640MiB
+    ports:
+      - 26257:26257
+      - 8080:8080
+    networks:
+      - roachnet
+
+  emqx_test:
+    image: emqx/emqx:5.0.17
+    container_name: emqx_test
+    restart: unless-stopped
+    ports:
+      - 1883:1883
+      - 8081:8081
+      - 8083:8083
+      - 8883:8883
+      - 8084:8084
+      - 18083:18083
+    environment:
+      - EMQX_NAME=emqx
+      - EMQX_HOST=node1.emqx.io
+      - EMQX_CLUSTER__DISCOVERY=static
+      - EMQX_CLUSTER__STATIC__SEEDS=[emqx@node1.emqx.io]
+      - EMQX_ZONE__EXTERNAL__RETRY_INTERVAL=2s
+      - EMQX_MQTT__MAX_TOPIC_ALIAS=10
+      - EMQX_RETAINER__STORAGE_TYPE=disc
+      - EMQX_RETAINER__EXPIRY_INTERVAL=192h
+      - EMQX_LOADED_MODULES="emqx_mod_acl_internal,emqx_mod_presence"
+      - EMQX_LOADED_PLUGINS="emqx_recon,emqx_retainer,emqx_management,emqx_dashboard,emqx_delayed_publish"
+    volumes:
+      - emqx-data:/opt/emqx/data/mnesia
+      - emqx-log:/opt/emqx/log
+    healthcheck:
+      test: [CMD, /opt/emqx/bin/emqx_ctl, status]
+      interval: 5s
+      timeout: 25s
+      retries: 5
+    networks:
+      emqxnet:
+        aliases:
+          - node1.emqx.io
+
+networks:
+  roachnet:
+    driver: bridge
+  emqxnet:
+    driver: bridge
+
+volumes:
+  cockroach-data:
+    name: cockroach-data
+  emqx-data:
+    name: emqx-data
+  emqx-log:
+    name: emqx-log
